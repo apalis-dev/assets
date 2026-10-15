@@ -1,11 +1,9 @@
-# Welcome to [Slidev](https://github.com/slidevjs/slidev)!
+# Lessons from building a background task processing library
+
+This directory contains slides for the talk given on EuroRust 2026
 
 To start the slide show:
 
-- `npm install`
-- `npm run dev`
+- `yarn`
+- `yarn dev`
 - visit <http://localhost:3030>
-
-Edit the [slides.md](./slides.md) to see the changes.
-
-Learn more about Slidev at the [documentation](https://sli.dev/).
