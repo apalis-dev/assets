@@ -19,6 +19,8 @@ duration: 30min
 
 <div class="mt-8 opacity-90">Lessons from building a background task processing library</div>
 
+## EURORUST 2026
+
 <!--
 ~2 min. Open with: "Who here has been told to just tokio::spawn it?" Hands up. Keep them up.
 "Good. This talk is for you. Also for the person who said it."
@@ -93,6 +95,7 @@ apalis is a simple background task and messages processing library for Rust
 - Dependency injection - akin to popular frameworks like [`actix`] and [`axum`]
 - Production ready with monitoring, metrics, graceful shutdown, and comprehensive error reporting
 - Extensible with middleware based on [`tower`] 
+- First class Sequential and Dag workflows
 
 <!--
 ~1 min: Highlight some of the features, but explain we are focussing on Worker, Task and Backend today
@@ -692,7 +695,7 @@ class: text-center
 - **Composition Exts:** Like `map_err`, `shared`, `with_codec` etc
 - **Popular integrations:** Postgres, Sqlite, Redis and many more.
 
-- **We are looking for sponsors:** (Does opensource even pay?)
+- **We are looking for contributors and sponsors:** (Does opensource even pay?)
 
 </v-clicks>
 
