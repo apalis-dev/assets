@@ -65,6 +65,42 @@ Interaction: Ask the room: who has lost a job to a restart?
 -->
 
 ---
+layout: center
+---
+
+# Who am I?
+
+I am Njuguna Mureithi:
+- Kenyan based in Nairobi
+- Formerly a Food scientist
+- Self taught software engineer
+- Previously Worked on Fintech, Cryptography and Systems design
+- Plays football, and enjoys nature
+
+---
+layout: center
+---
+
+# What is apalis?
+
+apalis is a simple background task and messages processing library for Rust
+
+## What does it offer?
+
+- Task handlers as async functions, no macros
+- Built-in task management retries, rate limiting, timeouts, idempotency, and error handling
+- Lightweight and lazy, workers do nothing until polled or woken: no busy-waiting
+- Dependency injection - akin to popular frameworks like [`actix`] and [`axum`]
+- Production ready with monitoring, metrics, graceful shutdown, and comprehensive error reporting
+- Extensible with middleware based on [`tower`] 
+
+<!--
+~1 min: Highlight some of the features, but explain we are focussing on Worker, Task and Backend today
+
+Interaction: Anyone using apalis?
+-->
+
+---
 
 # The holy trinity (of background jobs)
 
@@ -135,11 +171,12 @@ Interaction: Ask the room: ever borrowed a whole framework for one idea?
 
 ---
 layout: two-cols
+clicks: 3
 ---
 
 # Persistence: one trait to rule them all
 
-```rust {all|2|3-5|6-9|all}
+```rust {all|3-5,7,9|all|0}{at:0}
 trait Storage: Clone {
   type Output: Job;
   async fn push(..);
@@ -158,9 +195,9 @@ trait Storage: Clone {
 
 <v-clicks class="mt-12">
 
-- **The trait did three jobs:** store tasks, deliver them, and track worker liveness.
+- **The trait did everything:** store tasks, deliver them, and track worker liveness.
 - **Adding a backend:** implement everything, or nothing.
-- **Also** `MessageQueue` showed up next to it. Two fat traits. Congratulations to me.
+- **Also** I introduced `MessageQueue` for `enqueue` and `dequeue`. Two fat traits. Congratulations to me.
 
 </v-clicks>
 
@@ -187,7 +224,15 @@ fn consume(
   &mut self,
   worker_id: &String,
   interval: Duration,
-) -> JobStreamResult<Self::Output>;
+) -> JobStreamResult<Self::Output> {
+
+  loop {
+    interval.next().await;
+    /// Fetch from DB
+    /// TODO: use reddit guy's channel
+  }
+
+}
 ```
 
 ::right::
@@ -222,10 +267,13 @@ trait Backend<Req> {
   type Stream: Stream<
     Item = Result<Option<Req>, Error>>;
   type Layer;
-  fn layer(&self, w: &Worker)
+  fn layer(&self, w: &WorkerId)
     -> Self::Layer;
-  fn poll(self, w: &Worker)
-    -> Poller<Self::Stream>;
+  fn poll(self, w: &WorkerId)
+    -> Poller<Self::Stream> {
+      let stream = stream::unfold({ ... }); // example
+      Poller::new(stream)
+    }
 }
 ```
 
@@ -233,9 +281,11 @@ trait Backend<Req> {
 
 <v-clicks class="mt-12">
 
-- A backend is just a thing that yields tasks. Pass a stream, compose a stream.
-- Wakers let a notification trigger the next fetch.
-- **Rule learned:** don't reimplement what exists. `Stream`, `Sink`, Tower. Already there. Free.
+- A backend is just a thing that yields tasks. Pass a stream/compose a stream.
+- Streams provide better control.
+- **Problem:** Our sources are not streams (ideally)
+- **Problem:** No way to communicate with the worker
+
 
 </v-clicks>
 
@@ -252,6 +302,8 @@ Interaction: Ask the room: stream or trait object, what would you pick?
 -->
 
 ---
+layout: two-cols
+---
 
 # It worked! ...mostly
 
@@ -265,7 +317,6 @@ trait Backend<Req> {
 }
 ```
 ```rust
-// v0.6 + BackendExpose
 trait Backend<Req, Res> {
   type Stream: Stream<Item = Result<Option<Req>, Error>>;
   type Layer;
@@ -275,7 +326,6 @@ trait Backend<Req, Res> {
 }
 ```
 ```rust
-// v0.7
 trait Backend<Req> {
   type Stream: Stream<Item = Result<Option<Req>, Error>>;
   type Layer;
@@ -286,11 +336,13 @@ trait Backend<Req> {
 ```
 ````
 
+::right::
+
 <v-clicks class="mt-4">
 
-- **No notifications?** Back to blocks of polling calls.
 - **`poll(self)` consumes the backend,** so you can't react when something is pushed.
 - **Every gap = one more associated type.** Gotta catch 'em all.
+- **No connection between worker and backend** Backend may poll when worker is not ready
 
 </v-clicks>
 
@@ -443,15 +495,20 @@ layout: two-cols
 
 # It's wrappers all the way down 🐢
 
-```text
-backend/ext/
-  poll_strategy/  // interval, backoff,
-                  // future, stream
-  lifecycle/      // before_start ...
-                  // ... after_stop
-  wake_on_push  with_codec  instrument
-  map_err  inspect_err  interleave
-  shared  pipe  delegate
+With the `Backend` trait, composition becomes easy.
+
+```rust
+impl<B, F> Backend for InspectErr<B, F>
+    fn poll_ready(
+        &mut self,
+        cx: &mut Context<'_>,
+        worker: &WorkerContext,
+    ) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx, worker).map_err(|err| {
+            (self.f)(&err);
+            err
+        })
+    }
 ```
 
 ::right::
@@ -461,6 +518,7 @@ backend/ext/
 - Each one is a `Backend` wrapping a `Backend`.
 - Behaviour gets **added**, not baked in.
 - The control we lacked in the stream era (react to a push!) is now just a wrapper.
+- You can now have composition eg `BeforeStart`, `MapErr`, `PollWith`
 
 </v-clicks>
 
@@ -626,6 +684,27 @@ layout: center
 class: text-center
 ---
 
+# So where are we now?
+
+<v-clicks class="text-left mt-8">
+
+- **Stable Core API:**: Worker, Task and Backend are stable.
+- **Composition Exts:** Like `map_err`, `shared`, `with_codec` etc
+- **Popular integrations:** Postgres, Sqlite, Redis and many more.
+
+- **We are looking for sponsors:** (Does opensource even pay?)
+
+</v-clicks>
+
+<!--
+~2 min
+-->
+
+---
+layout: center
+class: text-center
+---
+
 # Four lessons (no sticker, sorry)
 
 <v-clicks class="text-left mt-8">
@@ -633,7 +712,7 @@ class: text-center
 - **Split the concerns.** Fat traits make everyone pay.
 - **Wake, don't poll.** Let the runtime ring the doorbell.
 - **Compose, don't configure.** Wrappers beat flags.
-- **Reuse what exists.** `Stream`, `Sink`, Tower. They're free.
+- **Reuse what exists.** `Stream`, `Sink`, tower. They're free.
 
 </v-clicks>
 
